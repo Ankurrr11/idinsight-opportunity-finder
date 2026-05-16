@@ -4,7 +4,18 @@ import datetime
 import xml.etree.ElementTree as ET
 import email.utils
 
-st.set_page_config(page_title="IDinsight Opportunity Finder", page_icon="🌍", layout="wide")
+st.set_page_config(page_title="IDinsight Opportunity Pipeline", page_icon="🌍", layout="wide")
+
+# --- CUSTOM BRANDING (IDINSIGHT) ---
+st.markdown("""
+    <style>
+    .main .block-container { padding-top: 2rem; }
+    </style>
+    <div style='background-color:#0A233F; padding:20px; border-radius:10px; margin-bottom:20px;'>
+        <h1 style='color:white; margin:0;'>🌍 IDinsight Opportunity Pipeline</h1>
+        <p style='color:#E8EEF2; margin:0;'>Automated intelligence system for prioritizing client RFPs across Africa and Asia.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- DATA INGESTION (RSS FEED) ---
 def fetch_live_opportunities():
@@ -52,18 +63,17 @@ def analyze_and_score(job_data):
     return score, " ".join(rationale)
 
 # --- UI ---
-st.title("🌍 IDinsight Client Opportunity Finder")
-st.markdown("Automated intelligence pipeline for identifying high-potential RFPs and B2B opportunities.")
+st.sidebar.header("📅 Pipeline Settings")
+lookback_days = st.sidebar.slider("Lookback Window (Days)", min_value=1, max_value=90, value=7)
+st.sidebar.caption("Slide to 90 to view all available history.")
 
-st.sidebar.header("📅 Report Settings")
-timeframe = st.sidebar.selectbox("Filter Date Range:", ["Last 7 Days (Fresh)", "Today Only", "Last 30 Days", "All Time"])
 st.sidebar.divider()
 st.sidebar.header("🔐 User Authentication")
 role = st.sidebar.selectbox("Simulate Logged-in User:", ["Global Director", "Director of Africa", "Director of Asia"])
 
-tab1, tab2 = st.tabs(["📊 Live Intelligence Dashboard", "📩 Daily Report Digest"])
+tab1, tab2 = st.tabs(["📊 Active Opportunity Pipeline", "📩 Daily Report Preview"])
 
-if st.sidebar.button("Generate Daily Summary", type="primary"):
+if st.sidebar.button("Run Opportunity Engine", type="primary"):
     with st.spinner("Scraping global databases and generating daily report..."):
         raw_data = fetch_live_opportunities()
         
@@ -76,9 +86,10 @@ if st.sidebar.button("Generate Daily Summary", type="primary"):
             try:
                 pub_date = email.utils.parsedate_to_datetime(pub_date_str)
                 days_old = (now - pub_date).days
-                if timeframe == "Today Only" and days_old > 1: continue
-                if timeframe == "Last 7 Days (Fresh)" and days_old > 7: continue
-                if timeframe == "Last 30 Days" and days_old > 30: continue
+                
+                # Apply Slider Filter (90 = Infinity)
+                if lookback_days < 90 and days_old > lookback_days: 
+                    continue
                 filtered_data.append(job)
             except:
                 filtered_data.append(job) 
@@ -97,10 +108,10 @@ if st.sidebar.button("Generate Daily Summary", type="primary"):
         results = sorted(results, key=lambda x: x['score'], reverse=True)
         high_matches = [r for r in results if r['score'] >= 50]
 
-        # --- TAB 1: THE DASHBOARD ---
+        # --- TAB 1: THE PIPELINE ---
         with tab1:
-            st.success(f"Generated Daily Summary! Found {len(filtered_data)} opportunities for {timeframe}.")
-            st.header(f"🏆 Top Daily Opportunities for: {role}")
+            st.success(f"Pipeline Refresh Complete! Found {len(filtered_data)} opportunities in your selected timeframe.")
+            st.header(f"🏆 Top Prioritized Opportunities for: {role}")
             if not high_matches: st.info("No high-match opportunities found today.")
                 
             for i, r in enumerate(high_matches):
@@ -108,7 +119,7 @@ if st.sidebar.button("Generate Daily Summary", type="primary"):
                     col1, col2 = st.columns([3, 1])
                     with col1:
                         st.markdown(f"**Scoring Rationale:**\n\n{r['rationale']}")
-                        st.markdown(f"[🔗 View Full Application/RFP Details]({r['url']})")
+                        st.markdown(f"[🔗 View Full RFP Details]({r['url']})")
                         st.divider()
                         st.write("**⚙️ Enterprise Actions:**")
                         btn_col1, btn_col2, btn_col3 = st.columns(3)
@@ -120,14 +131,14 @@ if st.sidebar.button("Generate Daily Summary", type="primary"):
                         st.caption(f"📅 Published: {r['date']}")
                         
             st.divider()
-            st.header("Other Scanned Items (Low Match)")
+            st.header("Other Scanned Items (Low Priority)")
             for r in [r for r in results if r['score'] < 50][:10]:
                 st.markdown(f"- **{r['score']}%** | {r['title']} ([Link]({r['url']}))")
 
         # --- TAB 2: VISUAL REPORT DIGEST ---
         with tab2:
-            st.header("📩 Today's Executive Digest (Preview)")
-            st.caption("This is a visual preview of the automated email sent to the Director every morning at 8:00 AM.")
+            st.header("📩 Daily Report (Preview)")
+            st.caption("This is a preview of the automated email sent to the Director every morning at 8:00 AM.")
             st.markdown("---")
             
             st.markdown(f"### 📅 IDinsight Daily Intelligence Briefing | {datetime.date.today()}")
@@ -145,4 +156,4 @@ if st.sidebar.button("Generate Daily Summary", type="primary"):
                     f"🔗 **[Click here to view the full RFP document]({r['url']})**"
                 )
 else:
-    st.info("👈 Click **Generate Daily Summary** to run the pipeline.")
+    st.info("👈 Click **Run Opportunity Engine** to execute the pipeline.")
