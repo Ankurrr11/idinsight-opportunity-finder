@@ -18,6 +18,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- DATA INGESTION (RSS FEED) ---
+@st.cache_data(ttl=3600)
 def fetch_live_opportunities():
     url = "https://reliefweb.int/jobs/rss.xml"
     try:
@@ -65,15 +66,15 @@ def analyze_and_score(job_data):
 # --- UI ---
 st.sidebar.header("📅 Pipeline Settings")
 lookback_days = st.sidebar.slider("Lookback Window (Days)", min_value=1, max_value=90, value=7)
-st.sidebar.caption("Slide to 90 to view all available history.")
+st.sidebar.caption("Slide to 90 to view maximum history.")
 
 st.sidebar.divider()
 st.sidebar.header("🔐 User Authentication")
 role = st.sidebar.selectbox("Simulate Logged-in User:", ["Global Director", "Director of Africa", "Director of Asia"])
 
-tab1, tab2 = st.tabs(["📊 Active Opportunity Pipeline", "📩 Daily Report Preview"])
+tab1, tab2 = st.tabs(["📊 Active Opportunity Pipeline", "📩 Automated Report Preview"])
 
-if st.sidebar.button("Run Opportunity Engine", type="primary"):
+if st.sidebar.checkbox("🟢 Activate Opportunity Engine", value=True):
     with st.spinner("Scraping global databases and generating daily report..."):
         raw_data = fetch_live_opportunities()
         
@@ -87,7 +88,6 @@ if st.sidebar.button("Run Opportunity Engine", type="primary"):
                 pub_date = email.utils.parsedate_to_datetime(pub_date_str)
                 days_old = (now - pub_date).days
                 
-                # Apply Slider Filter (90 = Infinity)
                 if lookback_days < 90 and days_old > lookback_days: 
                     continue
                 filtered_data.append(job)
@@ -110,7 +110,7 @@ if st.sidebar.button("Run Opportunity Engine", type="primary"):
 
         # --- TAB 1: THE PIPELINE ---
         with tab1:
-            st.success(f"Pipeline Refresh Complete! Found {len(filtered_data)} opportunities in your selected timeframe.")
+            st.success(f"Pipeline Refresh Complete! Found {len(filtered_data)} opportunities in the selected timeframe.")
             st.header(f"🏆 Top Prioritized Opportunities for: {role}")
             if not high_matches: st.info("No high-match opportunities found today.")
                 
@@ -132,12 +132,25 @@ if st.sidebar.button("Run Opportunity Engine", type="primary"):
                         
             st.divider()
             st.header("Other Scanned Items (Low Priority)")
-            for r in [r for r in results if r['score'] < 50][:10]:
-                st.markdown(f"- **{r['score']}%** | {r['title']} ([Link]({r['url']}))")
+            low_matches = [r for r in results if r['score'] < 50][:10]
+            for i, r in enumerate(low_matches):
+                with st.expander(f"[{r['score']}% Match] {r['title']}"):
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"**Scoring Rationale:**\n\n{r['rationale']}")
+                        st.markdown(f"[🔗 View Full RFP Details]({r['url']})")
+                        st.divider()
+                        st.write("**⚙️ Train Model:**")
+                        btn_col1, btn_col2 = st.columns(2)
+                        if btn_col1.button("👍 Train AI (Upvote)", key=f"low_up_{i}"): st.toast("Model updated.", icon="🧠")
+                        if btn_col2.button("👎 Ignore", key=f"low_down_{i}"): st.toast("Model updated.", icon="📉")
+                    with col2:
+                        st.metric("AI Match Score", f"{r['score']}%")
+                        st.caption(f"📅 Published: {r['date']}")
 
         # --- TAB 2: VISUAL REPORT DIGEST ---
         with tab2:
-            st.header("📩 Daily Report (Preview)")
+            st.header("📩 Automated Daily Report (Preview)")
             st.caption("This is a preview of the automated email sent to the Director every morning at 8:00 AM.")
             st.markdown("---")
             
@@ -155,5 +168,3 @@ if st.sidebar.button("Run Opportunity Engine", type="primary"):
                     f"**Why it matches:** {r['rationale'].replace('✅', '').replace('**', '')}\n\n"
                     f"🔗 **[Click here to view the full RFP document]({r['url']})**"
                 )
-else:
-    st.info("👈 Click **Run Opportunity Engine** to execute the pipeline.")
